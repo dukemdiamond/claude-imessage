@@ -1,0 +1,60 @@
+#!/usr/bin/env node
+// cc-imsg — terminal side of claude-imessage.
+//   cc-imsg hub                 run the hub (foreground)
+//   cc-imsg [name]              start (or reattach) a phone-reachable claude session in this folder
+//   cc-imsg attach <name>       attach to a session the hub started
+//   cc-imsg ls                  list sessions
+//   cc-imsg say "<text>"        act as if you texted <text> (testing / scripting)
+//   cc-imsg log                 tail the hub log
+import fs from 'node:fs'
+import net from 'node:net'
+import path from 'node:path'
+import { spawnSync, execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+import { ROOT, SOCKET_PATH, LOG_FILE, loadConfig, loadState } from '../lib/config.mjs'
+import { writeHooksFile, resolveClaude, tmuxName, tmuxNewArgs } from '../lib/launch.mjs'
+
+const [cmd, ...rest] = process.argv.slice(2)
+const hasSession = n => spawnSync('tmux', ['has-session', '-t', `=${tmuxName(n)}`]).status === 0
+const attach = n => spawnSync('tmux', [process.env.TMUX ? 'switch-client' : 'attach', '-t', `=${tmuxName(n)}`], { stdio: 'inherit' })
+
+switch (cmd) {
+  case 'hub':
+    spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(ROOT, 'hub.mjs')], { stdio: 'inherit' })
+    break
+  case 'attach': case 'a':
+    if (!rest[0]) { console.error('usage: cc-imsg attach <name>'); process.exit(1) }
+    attach(rest[0])
+    break
+  case 'ls': {
+    const state = loadState()
+    const out = spawnSync('tmux', ['ls', '-F', '#{session_name}'], { encoding: 'utf8' }).stdout || ''
+    const live = out.split('\n').filter(n => n.startsWith('cc-')).map(n => n.slice(3))
+    if (!live.length) console.log('no sessions')
+    for (const n of live) console.log(`${n === state.active ? '▶' : '•'} ${n}\t${state.sessions?.[n]?.dir ?? ''}`)
+    break
+  }
+  case 'say': {
+    const s = net.createConnection(SOCKET_PATH)
+    s.on('connect', () => s.write(JSON.stringify({ type: 'cli', text: rest.join(' ') }) + '\n'))
+    s.on('data', () => s.end())
+    s.on('error', () => { console.error('hub not running (cc-imsg hub)'); process.exit(1) })
+    break
+  }
+  case 'log':
+    spawnSync('tail', ['-f', LOG_FILE], { stdio: 'inherit' })
+    break
+  case 'help': case '-h': case '--help':
+    console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 9).map(l => l.replace(/^\/\/ ?/, '')).join('\n'))
+    break
+  default: {
+    // cc-imsg [name] — start claude here inside tmux so the hub (and your phone) can reach it.
+    const name = (cmd || path.basename(process.cwd())).replace(/[^\w.-]/g, '-')
+    if (!hasSession(name)) {
+      const cfg = loadConfig()
+      writeHooksFile()
+      execFileSync('tmux', tmuxNewArgs({ name, dir: process.cwd(), claudeBin: resolveClaude(cfg.claudeBin), claudeArgs: cfg.claudeArgs }))
+    }
+    attach(name)
+  }
+}

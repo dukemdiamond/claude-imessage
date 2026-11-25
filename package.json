@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "description": "Text your Mac to drive Claude Code over iMessage",
   "type": "module",
+  "bin": {
+    "cc-imsg": "bin/cc-imsg"
+  },
+  "scripts": {
+    "hub": "node --disable-warning=ExperimentalWarning hub.mjs"
+  },
   "engines": {
     "node": ">=22.5"
   },
