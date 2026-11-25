@@ -1,0 +1,14 @@
+{
+  "handles": [],
+  "botPrefix": "🤖",
+  "projectsRoot": "~/",
+  "projects": {
+    "imsg": "~/claude-imessage"
+  },
+  "autoTrust": [],
+  "replyMode": "phone",
+  "claudeArgs": [],
+  "announce": true,
+  "pollMs": 1000,
+  "maxChunk": 3000
+}

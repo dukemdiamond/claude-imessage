@@ -1,0 +1,11 @@
+{
+  "name": "claude-imessage",
+  "version": "0.1.0",
+  "description": "Text your Mac to drive Claude Code over iMessage",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "author": "Duke Diamond",
+  "license": "MIT"
+}
